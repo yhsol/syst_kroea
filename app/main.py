@@ -7,7 +7,7 @@ import logging
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(name)s - %(message)s'
 )
 
 app = FastAPI(title="Trading System")
