@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 from app.core.config import get_settings
-from app.api.endpoints import trading, webhook
+from app.api.v1.trading import router as trading_router
+from app.api.v1.webhook import router as webhook_router
 
 app = FastAPI(title="Trading System")
 
-app.include_router(trading.router, prefix="/api/v1", tags=["trading"])
-app.include_router(webhook.router, prefix="/api/v1/webhook", tags=["webhook"])
+app.include_router(trading_router, prefix="/api/v1/trading", tags=["trading"])
+app.include_router(webhook_router, prefix="/api/v1/webhook", tags=["webhook"])
 
 @app.get("/")
 async def root():
