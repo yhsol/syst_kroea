@@ -2,6 +2,13 @@ from fastapi import FastAPI
 from app.core.config import get_settings
 from app.api.v1.trading import router as trading_router
 from app.api.v1.webhook import router as webhook_router
+import logging
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI(title="Trading System")
 
