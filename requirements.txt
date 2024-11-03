@@ -1,0 +1,17 @@
+requests
+websockets
+pandas
+loguru
+pyyaml
+pycryptodome
+PyQt5
+urllib3==1.26.15
+bs4
+openpyxl
+fastapi>=0.68.0
+uvicorn>=0.15.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-multipart>=0.0.5
+python-dotenv
+pydantic_settings
