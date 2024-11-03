@@ -24,7 +24,7 @@ async def tradingview_webhook(request: Request):
         trading_service = TradingService()
         
         # 주문 파라미터 로깅
-        logger.info(f"Placing order: symbol={alert.symbol}, quantity={alert.quantity}, "
+        logger.info(f"Placing order: timeframe={alert.timeframe}, symbol={alert.symbol}, quantity={alert.quantity}, "
                     f"price={alert.price}, order_type={alert.order_type}, market={alert.market}")
         
         # market에 따라 주문 실행

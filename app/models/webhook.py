@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 class TradingViewAlert(BaseModel):
+    timeframe: str
     action: str  # "buy" or "sell"
     symbol: str  # 종목 코드
     quantity: int
