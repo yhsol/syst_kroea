@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
+from app.core.constants import OrderType
 from app.services.trading_service import TradingService
 from app.models.webhook import TradingViewAlert
 import logging
@@ -11,40 +12,59 @@ router = APIRouter()
 @router.post("/tradingview")
 async def tradingview_webhook(request: Request):
     try:
-        # 1. 요청 본문 파싱
+        # 요청 본문 파싱
         body = await request.json()
         logger.info(f"Received webhook data: {body}")
         
-        # 2. 데이터 검증
+        # 데이터 검증
         alert = TradingViewAlert(**body)
         logger.info(f"Parsed alert data: {alert}")
         
-        # 3. 트레이딩 로직 실행
+        # 트레이딩 로직 실행
         trading_service = TradingService()
         
         # 주문 파라미터 로깅
         logger.info(f"Placing order: symbol={alert.symbol}, quantity={alert.quantity}, "
-                    f"price={alert.price}, order_type={alert.order_type}")
+                    f"price={alert.price}, order_type={alert.order_type}, market={alert.market}")
         
-        # if alert.action == "buy":
-        #     result = trading_service.place_buy_order(
-        #         alert.symbol,
-        #         alert.quantity,
-        #         int(alert.price),
-        #         alert.order_type
-        #     )
-        # elif alert.action == "sell":
-        #     result = trading_service.place_sell_order(
-        #         alert.symbol,
-        #         alert.quantity,
-        #         int(alert.price),
-        #         alert.order_type
-        #     )
+        # market에 따라 주문 실행
+        # if alert.market == "korea":
+        #     if alert.action == "buy":
+        #         result = trading_service.place_buy_order(
+        #             alert.symbol,
+        #             alert.quantity,
+        #             int(alert.price),
+        #             alert.order_type
+        #         )
+        #     elif alert.action == "sell":
+        #         result = trading_service.place_sell_order(
+        #             alert.symbol,
+        #             alert.quantity,
+        #             int(alert.price),
+        #             alert.order_type
+        #         )
         # else:
-        #     raise ValueError(f"Invalid action: {alert.action}")
+        #     if alert.action == "buy":
+        #         result = trading_service.place_buy_order_overseas(
+        #             "NASD",
+        #             alert.symbol,
+        #             0,
+        #             1,
+        #             OrderType.LIMIT
+        #         )
+        #     elif alert.action == "sell":
+        #         result = trading_service.place_sell_order_overseas(
+        #             "NASD",
+        #             alert.symbol,
+        #             0,
+        #             1,
+        #             OrderType.LIMIT
+        #         )
+        result = '' # 실제 거래 시작시 제거
 
-        # logger.info(f"Order result: {"result"}")
-        return {"status": "success", "data": "result"}
+
+        logger.info(f"Order result: {result}")
+        return {"status": "success", "data": result}
 
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")

@@ -7,4 +7,4 @@ class TradingViewAlert(BaseModel):
     quantity: int
     price: float
     order_type: str = "01"  # 기본값은 지정가
-    exchange: Optional[str] = None  # 해외주식을 위한 거래소 코드 
+    market: Optional[str] = None  # 해외주식을 위한 거래소 코드 
