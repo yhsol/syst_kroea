@@ -43,7 +43,7 @@ async def tradingview_webhook(request: Request):
         # else:
         #     raise ValueError(f"Invalid action: {alert.action}")
 
-        logger.info(f"Order result: {"result"}")
+        # logger.info(f"Order result: {"result"}")
         return {"status": "success", "data": "result"}
 
     except ValueError as e:
