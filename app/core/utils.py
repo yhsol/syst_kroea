@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 import logging
 
+from app.core.exchange_codes import ExchangeCodeConverter
 from app.core.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
@@ -380,13 +381,19 @@ class KoreaInvestAPI:
             url = "/uapi/overseas-price/v1/quotations/inquire-asking-price"
             tr_id = "HHDFS76200100"  # 실시간 체결가/호가 조회
 
-            upper_case_exchange_code = exchange_code.upper()
-            upper_case_stock_code = stock_code.upper()
+
+            exchange = ExchangeCodeConverter.from_string(exchange_code)
+            if not exchange:
+                raise ValueError(f"Invalid exchange code: {exchange}")
+            
+            hoga_exchange_code = ExchangeCodeConverter.get_code(exchange, "HOGA")
+
+            logger.info(f"hoga_exchange_code: {hoga_exchange_code}")
 
             params = {
                 "AUTH": "",
-                "EXCD": "NAS",
-                "SYMB": upper_case_stock_code,
+                "EXCD": hoga_exchange_code,
+                "SYMB": stock_code.upper(),
             }
 
             logger.info(f"Requesting overseas hoga with params: {params}")
@@ -436,20 +443,23 @@ class KoreaInvestAPI:
             return None
         
     def get_buyable_amount_overseas(self, exchange_code: str, stock_code: str, price: float):
-        """해외주식 매수가능금액 조회"""
         try:
+            exchange = ExchangeCodeConverter.from_string(exchange_code)
+            if not exchange:
+                raise ValueError(f"Invalid exchange code: {exchange_code}")
+            
+            buyable_exchange_code = ExchangeCodeConverter.get_code(exchange, "BUYABLE")
+            logger.info(f"buyable_exchange_code: {buyable_exchange_code}")
+            
             url = "/uapi/overseas-stock/v1/trading/inquire-psamount"
             tr_id = "TTTS3007R"
-
-            upper_case_exchange_code = exchange_code.upper()
-            upper_case_stock_code = stock_code.upper()  
-
+            
             params = {
                 "CANO": self.account_num,
                 "ACNT_PRDT_CD": self.stock_account_product_code,
-                "OVRS_EXCG_CD": "NASD",
-                "ITEM_CD": upper_case_stock_code,
-                "OVRS_ORD_UNPR": str(price),
+                "OVRS_EXCG_CD": buyable_exchange_code,  # 여기서 AMEX 사용
+                "ITEM_CD": stock_code.upper(),
+                "OVRS_ORD_UNPR": str(price)
             }
 
             t1 = self._url_fetch(url, tr_id, params)
