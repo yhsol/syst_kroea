@@ -9,4 +9,4 @@ class TradingViewAlert(BaseModel):
     price: float
     order_type: str = "01"  # 기본값은 지정가
     market: Optional[str] = None
-    exchange_code: Optional[str] = "NASD"  # 해외주식 거래소 코드
+    exchange: str  # TradingView의 exchange 값
