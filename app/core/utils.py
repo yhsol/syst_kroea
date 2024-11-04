@@ -18,11 +18,9 @@ class KoreaInvestEnv:
         self.api_key = cfg['api_key']
         self.api_secret_key = cfg['api_secret_key']
         
-        # TokenManager 인스턴스 생성 (URL 추가)
-        self.token_manager = TokenManager(
-            self.api_key, 
-            self.api_secret_key,
-        )
+        # TokenManager 싱글톤 인스턴스 초기화
+        self.token_manager = TokenManager()
+        self.token_manager.initialize(self.api_key, self.api_secret_key)
         
         # 기본 헤더 설정
         self.base_headers = {
@@ -32,7 +30,7 @@ class KoreaInvestEnv:
             'User-Agent': cfg['my_agent'],
             "appkey": self.api_key,
             "appsecret": self.api_secret_key,
-            "authorization": self.token_manager.get_token()  # Bearer 토큰이 포함된 형태
+            "authorization": self.token_manager.get_token()
         }
 
         self.stock_account_number = cfg['stock_account_number']
@@ -44,6 +42,7 @@ class KoreaInvestEnv:
         self.cfg['using_url'] = self.using_url
 
     def get_base_headers(self):
+        self.base_headers["authorization"] = self.token_manager.get_token()
         return copy.deepcopy(self.base_headers)
     
     def get_full_config(self):
