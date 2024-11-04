@@ -6,28 +6,39 @@ import pandas as pd
 import requests
 import logging
 
+from app.core.token_manager import TokenManager
+
 logger = logging.getLogger(__name__)
 
 class KoreaInvestEnv:
     def __init__(self, cfg):
         self.cfg = cfg
         self.custtype = cfg['custtype']
+        self.using_url = cfg['url']
+        self.api_key = cfg['api_key']
+        self.api_secret_key = cfg['api_secret_key']
+        
+        # TokenManager 인스턴스 생성 (URL 추가)
+        self.token_manager = TokenManager(
+            self.api_key, 
+            self.api_secret_key,
+        )
+        
+        # 기본 헤더 설정
         self.base_headers = {
             "Content-Type": "application/json",
             "Accept": "text/plain",
             "charset": "UTF-8",
-            'User-Agent': cfg['my_agent'] 
+            'User-Agent': cfg['my_agent'],
+            "appkey": self.api_key,
+            "appsecret": self.api_secret_key,
+            "authorization": self.token_manager.get_token()  # Bearer 토큰이 포함된 형태
         }
 
-        self.using_url = cfg['url']
-        self.api_key = cfg['api_key']
-        self.api_secret_key = cfg['api_secret_key']
         self.stock_account_number = cfg['stock_account_number']
         self.websocket_approval_key = self.get_websocket_approval_key()
-        self.account_access_token = self.get_account_access_token()
-        self.base_headers["authorization"] = self.account_access_token
-        self.base_headers["appkey"] = self.api_key
-        self.base_headers["appsecret"] = self.api_secret_key
+        
+        # 설정 업데이트
         self.cfg['websocket_approval_key'] = self.websocket_approval_key
         self.cfg['account_num'] = self.stock_account_number
         self.cfg['using_url'] = self.using_url
@@ -364,6 +375,111 @@ class KoreaInvestAPI:
 
     # 해외 주식
 
+    def get_hoga_info_overseas(self, exchange_code: str, stock_code: str):
+        """해외주식 호가 정보 조회"""
+        try:
+            url = "/uapi/overseas-price/v1/quotations/inquire-asking-price"
+            tr_id = "HHDFS76200100"  # 실시간 체결가/호가 조회
+
+            upper_case_exchange_code = exchange_code.upper()
+            upper_case_stock_code = stock_code.upper()
+
+            params = {
+                "AUTH": "",
+                "EXCD": "NAS",
+                "SYMB": upper_case_stock_code,
+            }
+
+            logger.info(f"Requesting overseas hoga with params: {params}")
+            
+            t1 = self._url_fetch(url, tr_id, params)
+            
+            if t1 is not None and t1.is_ok():
+                response_body = t1.get_body()
+                output1 = response_body.output1
+                output2 = response_body.output2
+                
+                # 안전한 형변환을 위한 helper 함수들
+                def safe_float(value, default=0.0):
+                    try:
+                        return float(value) if value else default
+                    except (ValueError, TypeError):
+                        return default
+
+                def safe_int(value, default=0):
+                    try:
+                        return int(value) if value else default
+                    except (ValueError, TypeError):
+                        return default
+                
+                # 필요한 정보만 추출하여 반환
+                hoga_info = {
+                    'currency': output1.get('curr', ''),
+                    'decimal_places': safe_int(output1.get('zdiv', 0)),
+                    'current_price': safe_float(output1.get('last', 0)),
+                    'ask_price': safe_float(output2.get('pask1', 0)),
+                    'bid_price': safe_float(output2.get('pbid1', 0)),
+                    'ask_volume': safe_int(output2.get('vask1', 0)),
+                    'bid_volume': safe_int(output2.get('vbid1', 0))
+                }
+                
+                logger.info(f"Parsed hoga info: {hoga_info}")
+                return hoga_info
+            elif t1 is None:
+                return None
+            else:
+                t1.print_error()
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting overseas hoga: {str(e)}")
+            logger.exception("Detailed error:")  # 상세 에러 스택트레이스 출력
+            return None
+        
+    def get_buyable_amount_overseas(self, exchange_code: str, stock_code: str, price: float):
+        """해외주식 매수가능금액 조회"""
+        try:
+            url = "/uapi/overseas-stock/v1/trading/inquire-psamount"
+            tr_id = "TTTS3007R"
+
+            upper_case_exchange_code = exchange_code.upper()
+            upper_case_stock_code = stock_code.upper()  
+
+            params = {
+                "CANO": self.account_num,
+                "ACNT_PRDT_CD": self.stock_account_product_code,
+                "OVRS_EXCG_CD": "NASD",
+                "ITEM_CD": upper_case_stock_code,
+                "OVRS_ORD_UNPR": str(price),
+            }
+
+            t1 = self._url_fetch(url, tr_id, params)
+            
+            if t1 is not None and t1.is_ok():
+                output = t1.get_body().output
+                logger.info(f"Overseas buyable amount: {output}")
+                
+                # 필요한 정보만 추출하여 반환
+                buyable_info = {
+                    'currency': output.get('tr_crcy_cd', ''),  # 거래통화코드
+                    'exchange_rate': float(output.get('exrt', 0)),  # 환율
+                    'max_quantity': int(output.get('max_ord_psbl_qty', 0)),  # 최대주문가능수량
+                    'available_cash': float(output.get('ord_psbl_frcr_amt', 0)),  # 주문가능외화금액
+                    'total_max_quantity': int(output.get('ovrs_max_ord_psbl_qty', 0)),  # 해외최대주문가능수량 (통합)
+                    'total_available_amount': float(output.get('frcr_ord_psbl_amt1', 0)),  # 외화주문가능금액 (통합)
+                }
+                
+                return buyable_info
+            elif t1 is None:
+                return None
+            else:
+                t1.print_error()
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting overseas buyable amount: {e}")
+            return None
+
     def get_current_price_overseas(self, exchange_code, stock_code):
         url = "/uapi/overseas-price/v1/quotations/price"
         tr_id = "HHDFS00000300"
@@ -375,6 +491,7 @@ class KoreaInvestAPI:
         }
 
         t1 = self._url_fetch(url, tr_id, params)
+        logger.info(f"Current price: {t1}")
 
         if t1 is not None and t1.is_ok():
             return t1.get_body().output
@@ -383,42 +500,43 @@ class KoreaInvestAPI:
             return None
 
     def get_account_balance_overseas(self):
+        """해외주식 잔고 조회"""
         url = "/uapi/overseas-stock/v1/trading/inquire-balance"
         tr_id = "TTTS3012R"
-
+        
         params = {
             "CANO": self.account_num,
             "ACNT_PRDT_CD": self.stock_account_product_code,
-            "OVRS_EXCG_CD": "NASD",
-            "TR_CRCY_CD": "USD",
+            "OVRS_EXCG_CD": "NASD",  # NASD로 고정
+            "TR_CRCY_CD": "USD",     # USD로 고정
             "CTX_AREA_FK200": "",
-            "CTX_AREA_NK200": "",
+            "CTX_AREA_NK200": ""
         }
 
-        t1 = self._url_fetch(url, tr_id, params)
+        res = self._url_fetch(url, tr_id, params)
         output_columns = ["종목코드", "해외거래소코드", "종목명", "보유수량", "매도가능수량", "매입단가", "수익률", "현재가", "평가손익"]
-        
-        if t1 is None:
+
+        if res is None:
             return 0, pd.DataFrame(columns=output_columns)
         
         try:
-            output1 = t1.get_body().output1
+            output1 = res.get_body().output1
         except Exception as e:
             logger.error(f"Error in get_account_balance_overseas: {e}")
             return 0, pd.DataFrame(columns=output_columns)
         
-        if t1 is not None and t1.is_ok() and output1:
+        if res is not None and res.is_ok() and output1:
             df = pd.DataFrame(output1)
-            
             target_columns = ["ovrs_pdno", "ovrs_excg_cd", "ovrs_item_name", "ovrs_cblc_qty", "ord_psbl_qty", "pchs_avg_pric", "evlu_pfls_rt", "now_pric2", "frcr_evlu_pfls_amt"]
             df = df[target_columns]
-            df[target_columns[3:]] = df[target_columns[3:]].apply(pd.to_numeric)
-            column_rename_map = dict(zip(target_columns, output_columns))
-            df.rename(columns=column_rename_map, inplace=True)
-            df = df[df['보유수량'] != 0]
-            r2 = t1.get_body().output2
-            return float(r2[0]['tot_evlu_pfls_amt']), df
+            df[target_columns[3:]] = df[target_columns[3:]].apply(pd.to_numeric, errors='coerce')
+            column_name_map = dict(zip(target_columns, output_columns))
+            df.rename(columns=column_name_map, inplace=True)
+            r2 = res.get_body().output2
+            total_profit_loss = float(r2['tot_evlu_pfls_amt']) if r2 else 0
+            return total_profit_loss, df
         else:
+            logger.error(f"Error in get_account_balance_overseas: {res.get_error_code() if res else 'No response'}")
             return 0, pd.DataFrame(columns=output_columns)
         
     def do_order_overseas(self, exchange_code, stock_code, price, quantity, order_type="00", prd_code="01", buy_flag=True):
@@ -428,6 +546,7 @@ class KoreaInvestAPI:
             tr_id = "TTTT1002U"
         else:
             tr_id = "TTTT1006U"
+
 
         params = {
             "CANO": self.account_num,
@@ -439,6 +558,9 @@ class KoreaInvestAPI:
             "ORD_SVR_DVSN_CD": "0",
             "ORD_DVSN": order_type,
         }
+
+        logger.info(f"Requesting overseas order with params: {params}")
+
 
         t1 = self._url_fetch(url, tr_id, params, is_post=True, use_hash=True)
 

@@ -16,3 +16,4 @@ python-multipart>=0.0.5
 python-dotenv
 pydantic_settings
 python-dotenv
+requests>=2.31.0

@@ -27,44 +27,74 @@ async def tradingview_webhook(request: Request):
         logger.info(f"Placing order: timeframe={alert.timeframe}, symbol={alert.symbol}, quantity={alert.quantity}, "
                     f"price={alert.price}, order_type={alert.order_type}, market={alert.market}")
         
+        upper_exchange_code = alert.exchange_code.upper()
+        upper_symbol = alert.symbol.upper()
+        
         # market에 따라 주문 실행
-        # if alert.market == "korea":
-        #     if alert.action == "buy":
-        #         result = trading_service.place_buy_order(
-        #             alert.symbol,
-        #             alert.quantity,
-        #             int(alert.price),
-        #             alert.order_type
-        #         )
-        #     elif alert.action == "sell":
-        #         result = trading_service.place_sell_order(
-        #             alert.symbol,
-        #             alert.quantity,
-        #             int(alert.price),
-        #             alert.order_type
-        #         )
-        # else:
-        #     if alert.action == "buy":
-        #         result = trading_service.place_buy_order_overseas(
-        #             "NASD",
-        #             alert.symbol,
-        #             0,
-        #             1,
-        #             OrderType.LIMIT
-        #         )
-        #     elif alert.action == "sell":
-        #         result = trading_service.place_sell_order_overseas(
-        #             "NASD",
-        #             alert.symbol,
-        #             0,
-        #             1,
-        #             OrderType.LIMIT
-        #         )
-        result = '' # 실제 거래 시작시 제거
+        if alert.market == "korea":
+            # 기존 국내 주식 로직
+            pass
+        else:  # Overseas market
+            # 호가 정보 조회
+            hoga_info = trading_service.get_hoga_info_overseas(upper_exchange_code, upper_symbol)
+            if not hoga_info:
+                raise HTTPException(status_code=404, detail="Failed to get hoga information")
 
+            if alert.action == "buy":
+                # 수량이 0이면 최대 매수 가능 수량 계산
+                quantity = alert.quantity if alert.quantity > 0 else trading_service.calculate_overseas_max_buy_quantity(
+                    upper_exchange_code,
+                    upper_symbol
+                )
+                
+                if not quantity:
+                    raise HTTPException(status_code=400, detail="Failed to calculate buy quantity")
 
-        logger.info(f"Order result: {result}")
-        return {"status": "success", "data": result}
+                # 매수 주문 실행
+                result = trading_service.place_buy_order_overseas(
+                    exchange_code=upper_exchange_code,
+                    stock_code=upper_symbol,
+                    price=hoga_info['ask_price'],
+                    quantity=quantity,
+                    order_type=OrderType.LIMIT
+                )
+
+            elif alert.action == "sell":
+                # 수량이 0이면 최대 매도 가능 수량 계산
+                quantity = alert.quantity if alert.quantity > 0 else trading_service.calculate_overseas_max_sell_quantity(
+                    upper_exchange_code,
+                    upper_symbol
+                )
+                
+                if not quantity:
+                    raise HTTPException(status_code=400, detail="No holdings available for sell")
+
+                # 매도 주문 실행
+                result = trading_service.place_sell_order_overseas(
+                    exchange_code=upper_exchange_code,
+                    stock_code=upper_symbol,
+                    price=hoga_info['bid_price'],
+                    quantity=quantity,
+                    order_type=OrderType.LIMIT
+                )
+
+            if not result:
+                raise HTTPException(status_code=400, detail="Order failed")
+
+            # result 객체에서 필요한 정보만 추출
+            order_info = {
+                "rt_cd": result.get_body().rt_cd,
+                "msg_cd": result.get_body().msg_cd,
+                "msg1": result.get_body().msg1,
+                "output": result.get_body().output
+            }
+
+            return {
+                "status": "success",
+                "order_info": order_info,
+                "quantity": quantity,
+                "price": hoga_info['ask_price'] if alert.action == "buy" else hoga_info['bid_price']
+            }
 
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")
