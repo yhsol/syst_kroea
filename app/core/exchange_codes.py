@@ -52,6 +52,17 @@ class ExchangeCodeConverter:
         }
     }
 
+    # TradingView의 거래소 코드 매핑 추가
+    TRADINGVIEW_MAPPING = {
+        "NASDAQ": ExchangeCode.NASDAQ,
+        "NYSE": ExchangeCode.NYSE,
+        "AMEX": ExchangeCode.AMEX,
+        "NSE": ExchangeCode.NYSE,      # TradingView에서 사용하는 다른 코드
+        "NSD": ExchangeCode.NASDAQ,    # TradingView에서 사용하는 다른 코드
+        "BATS": ExchangeCode.AMEX,     # BATS도 AMEX로 처리
+        "ARCA": ExchangeCode.AMEX,     # NYSE Arca도 AMEX로 처리
+    }
+
     @classmethod
     def get_code(cls, exchange: ExchangeCode, api_type: str) -> Optional[str]:
         """
@@ -70,4 +81,11 @@ class ExchangeCodeConverter:
         try:
             return ExchangeCode[exchange_str.upper()]
         except KeyError:
-            return None 
+            return None
+
+    @classmethod
+    def from_tradingview(cls, tv_exchange: str) -> Optional[ExchangeCode]:
+        """
+        TradingView의 거래소 코드를 내부 ExchangeCode로 변환
+        """
+        return cls.TRADINGVIEW_MAPPING.get(tv_exchange.upper())

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from app.core.constants import OrderType
 from app.services.trading_service import TradingService
 from app.models.webhook import TradingViewAlert
+from app.core.exchange_codes import ExchangeCodeConverter
 import logging
 
 # 로거 생성
@@ -12,7 +13,6 @@ router = APIRouter()
 @router.post("/tradingview")
 async def tradingview_webhook(request: Request):
     try:
-        # 요청 본문 파싱
         body = await request.json()
         logger.info(f"Received webhook data: {body}")
         
@@ -23,12 +23,17 @@ async def tradingview_webhook(request: Request):
         # 트레이딩 로직 실행
         trading_service = TradingService()
         
-        # 주문 파라미터 로깅
-        logger.info(f"Placing order: timeframe={alert.timeframe}, symbol={alert.symbol}, quantity={alert.quantity}, "
-                    f"price={alert.price}, order_type={alert.order_type}, market={alert.market}")
+        # TradingView exchange 코드를 내부 코드로 변환
+        exchange = ExchangeCodeConverter.from_tradingview(alert.exchange)
+        if not exchange:
+            raise ValueError(f"Invalid exchange code from TradingView: {alert.exchange}")
         
-        upper_exchange_code = alert.exchange_code.upper()
+        upper_exchange_code = exchange.name
         upper_symbol = alert.symbol.upper()
+        
+        # 주문 파라미터 로깅
+        logger.info(f"Placing order: timeframe={alert.timeframe}, symbol={upper_symbol}, "
+                   f"exchange={upper_exchange_code}, quantity={alert.quantity}")
         
         # market에 따라 주문 실행
         if alert.market == "korea":
