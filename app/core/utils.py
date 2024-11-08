@@ -549,36 +549,42 @@ class KoreaInvestAPI:
             return 0, pd.DataFrame(columns=output_columns)
         
     def do_order_overseas(self, exchange_code, stock_code, price, quantity, order_type="00", prd_code="01", buy_flag=True):
-        url = "/uapi/overseas-stock/v1/trading/order"
+        try:
+            # Convert exchange code
+            exchange = ExchangeCodeConverter.from_string(exchange_code)
+            if not exchange:
+                raise ValueError(f"Invalid exchange code: {exchange_code}")
+            
+            order_exchange_code = ExchangeCodeConverter.get_code(exchange, "ORDER")
+            
+            url = "/uapi/overseas-stock/v1/trading/order"
+            tr_id = "TTTT1002U" if buy_flag else "TTTT1006U"
 
-        if buy_flag:
-            tr_id = "TTTT1002U"
-        else:
-            tr_id = "TTTT1006U"
+            params = {
+                "CANO": self.account_num,
+                "ACNT_PRDT_CD": self.stock_account_product_code,
+                "OVRS_EXCG_CD": order_exchange_code,  # Use converted exchange code
+                "PDNO": stock_code,
+                "ORD_QTY": str(quantity),
+                "OVRS_ORD_UNPR": str(price),
+                "ORD_SVR_DVSN_CD": "0",
+                "ORD_DVSN": order_type,
+            }
 
+            logger.info(f"Requesting overseas order with params: {params}")
 
-        params = {
-            "CANO": self.account_num,
-            "ACNT_PRDT_CD": self.stock_account_product_code,
-            "OVRS_EXCG_CD": exchange_code,
-            "PDNO": stock_code,
-            "ORD_QTY": str(quantity),
-            "OVRS_ORD_UNPR": str(price),
-            "ORD_SVR_DVSN_CD": "0",
-            "ORD_DVSN": order_type,
-        }
+            t1 = self._url_fetch(url, tr_id, params, is_post=True, use_hash=True)
 
-        logger.info(f"Requesting overseas order with params: {params}")
-
-
-        t1 = self._url_fetch(url, tr_id, params, is_post=True, use_hash=True)
-
-        if t1 is not None and t1.is_ok():
-            return t1
-        elif t1 is None:
-            return None
-        else:
-            t1.print_error()
+            if t1 is not None and t1.is_ok():
+                return t1
+            elif t1 is None:
+                return None
+            else:
+                t1.print_error()
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error in overseas order: {e}")
             return None
         
         

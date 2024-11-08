@@ -8,16 +8,16 @@ class TradingService:
     def __init__(self):
         settings = get_settings()
         self.config = {
-            "api_key": settings.API_KEY,
-            "api_secret_key": settings.API_SECRET_KEY,
-            "stock_account_number": settings.STOCK_ACCOUNT_NUMBER,
-            "stock_account_product_code": settings.STOCK_ACCOUNT_PRODUCT_CODE,
-            "hts_id": settings.HTS_ID,
-            "custtype": settings.CUSTTYPE,
-            "is_paper_trading": settings.IS_PAPER_TRADING,
-            "my_agent": settings.MY_AGENT,
-            "url": settings.URL,
-            "webhook_url": settings.WEBHOOK_URL
+            "api_key": settings["API_KEY"],
+            "api_secret_key": settings["API_SECRET_KEY"],
+            "stock_account_number": settings["STOCK_ACCOUNT_NUMBER"],
+            "stock_account_product_code": settings["STOCK_ACCOUNT_PRODUCT_CODE"],
+            "hts_id": settings["HTS_ID"],
+            "custtype": settings["CUSTTYPE"],
+            "is_paper_trading": settings["IS_PAPER_TRADING"],
+            "my_agent": settings["MY_AGENT"],
+            "url": settings["URL"],
+            "webhook_url": settings["WEBHOOK_URL"]
         }
         self.env = KoreaInvestEnv(self.config)
         self.api = KoreaInvestAPI(self.env.get_full_config(), self.env.get_base_headers())
