@@ -595,6 +595,92 @@ class KoreaInvestAPI:
     def do_sell_order_overseas(self, exchange_code, stock_code, price, quantity, order_type="00", prd_code="01"):
         t1 = self.do_order_overseas(exchange_code, stock_code, price, quantity, order_type, prd_code, buy_flag=False)
         return t1
+    
+    def do_cancel_revise_order_overseas(self, stock_code, order_no, order_qty, order_price=0, order_branch="NASD", prd_code='01', cncl_dv="02"):
+        url = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
+        tr_id = "TTTT1004U"
+
+        params = {
+            "CANO": self.account_num,
+            "ACNT_PRDT_CD": self.stock_account_product_code,
+            "OVRS_EXCG_CD": order_branch,
+            "PDNO": stock_code,
+            "ORGN_ODNO": order_no,
+            "ORD_SVR_DVSN_CD": "0",
+            "RVSE_CNCL_DVSN_CD": cncl_dv, # 01: 정정, 02: 취소
+            "ORD_QTY": str(order_qty),
+            "OVRS_ORD_UNPR": str(order_price),
+        }
+
+        t1 = self._url_fetch(url, tr_id, params, is_post=True, use_hash=True)
+
+        if t1 is not None and t1.is_ok():
+            return t1
+        elif t1 is None:
+            return None
+        else:
+            t1.print_error()
+            return None
+
+    def do_cancel_order_overseas(self, stock_code, order_no, order_qty, order_price=0, order_branch="NASD", prd_code='01', cncl_dv="02"):
+        t1 = self.do_cancel_revise_order_overseas(stock_code, order_no, order_qty, order_price, order_branch, prd_code, cncl_dv)
+        return t1
+    
+    # 해외주식 미체결내역[v1_해외주식-005]
+    def get_overseas_orders(self, exchange_code="NASD"):
+        url = "/uapi/overseas-stock/v1/trading/inquire-nccs"
+        tr_id = "TTTS3018R"
+
+        params = {
+            "CANO": self.account_num,
+            "ACNT_PRDT_CD": self.stock_account_product_code,
+            "OVRS_EXCG_CD": exchange_code,
+            "SORT_SQN": "DS",
+            "CTX_AREA_FK200": "",
+            "CTX_AREA_NK200": "",
+        }
+
+        t1 = self._url_fetch(url, tr_id, params)
+        if t1 is not None and t1.is_ok() and t1.get_body().output:
+            tdf = pd.DataFrame(t1.get_body().output)
+            tdf.set_index("odno", inplace=True)
+            cf1 = ['pdno', 'ft_ord_qty', 'ft_ord_unpr3', 'ord_tmd', 'ovrs_excg_cd', 'orgn_odno', 'nccs_qty', 'sll_buy_dvsn_cd', 'sll_buy_dvsn_cd_name']
+            cf2 = ['종목코드', '주문수량', '주문단가', '주문일시', '해외거래소코드', '원주문번호', '주문가능수량', '매도매수구분코드', '매도매수구분코드명']
+            tdf = tdf[cf1]
+            ren_dict = dict(zip(cf1, cf2))
+            tdf.rename(columns=ren_dict, inplace=True)
+            return tdf
+        else:
+            t1.print_error()
+            return None
+        
+    def overseas_do_cancel_all_orders(self, skip_codes=[]):
+        tdf = self.get_overseas_orders()
+        if tdf is not None:
+            od_list = tdf.index.to_list()
+            qty_list = tdf['주문수량'].to_list()
+            price_list = tdf['주문단가'].to_list()
+            exchange_list = tdf['해외거래소코드'].to_list()
+            codes_list = tdf['종목코드'].to_list()
+            
+            for i, order_no in enumerate(od_list):
+                if codes_list[i] in skip_codes:
+                    continue
+                try:
+                    ar = self.do_cancel_order_overseas(
+                        stock_code=codes_list[i],
+                        order_no=order_no,
+                        order_qty=qty_list[i],
+                        order_price=price_list[i],
+                        order_brance=exchange_list[i]
+                    )
+                    logger.info(f"Cancel Order: {ar}")
+                    time.sleep(0.02)
+                except Exception as e:
+                    logger.error(f"Error canceling order {order_no}: {str(e)}")
+
+    
+
 
 class APIResponse:
     def __init__(self, response):
